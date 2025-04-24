@@ -7,3 +7,11 @@ class UploadedImage(models.Model):
 
     def __str__(self):
         return self.title
+    
+class ImageAnnotation(models.Model):
+    image_url = models.URLField()
+    polygons = models.JSONField()  # Stores list of polygons (as JSON)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Annotation for {self.image_url}"
