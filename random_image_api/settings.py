@@ -7,6 +7,10 @@ SECRET_KEY = 'django-insecure-random-key'
 DEBUG = True
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://web-production-114d3.up.railway.app"
+]
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
