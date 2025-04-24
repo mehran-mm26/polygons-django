@@ -11,6 +11,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://web-production-114d3.up.railway.app"
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -23,6 +25,7 @@ INSTALLED_APPS = [
     'cloudinary',
     'cloudinary_storage',
     'image_app',
+    'corsheaders',
 ]
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': 'de7bqo7of',
@@ -34,6 +37,7 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
