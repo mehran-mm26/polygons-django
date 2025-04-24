@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Django
+*.sqlite3
+*.log
+db.sqlite3
+media/
+uploads/
+
+# Env files
+.env
+*.env
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+
+# VSCode / PyCharm
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Node modules (in case you add frontend)
+node_modules/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# System files
+Thumbs.db
+ehthumbs.db
