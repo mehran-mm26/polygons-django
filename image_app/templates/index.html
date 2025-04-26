@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image Annotation | Elaheh Einanlou</title>
+  <style>
+    body {
+      width: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+    }
+    canvas {
+      border: 1px solid black;
+      cursor: crosshair;
+      max-width: 100%;
+      height: auto;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 1rem 0;
+      background: #e0e0e0;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .toolbar button {
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #ccc;
+    }
+    .toolbar button.active {
+      background: #999;
+    }
+    #spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 10;
+    }
+    #spinner::after {
+      content: '';
+      width: 40px;
+      height: 40px;
+      border: 6px solid #ccc;
+      border-top-color: #333;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: block;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    #modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.4);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+    #modalContent {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 8px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Image Annotation</h1>
+    <div style="margin-bottom: 1rem;">
+      <button id="reloadImage">Reload Image</button>
+      <button id="submitBtn">Submit</button>
+    </div>
+
+    <div class="toolbar">
+      <button id="createPolygon" class="active">Create Polygon</button>
+      <button id="editMode">Edit Points</button>
+      <button id="deletePoint">Delete Point</button>
+    </div>
+
+    <div id="spinner"></div>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="modal">
+    <div id="modalContent">Submitted completely. Thank you for your efforts.</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const reloadImageBtn = document.getElementById('reloadImage');
+    const submitBtn = document.getElementById('submitBtn');
+    const createPolygonBtn = document.getElementById('createPolygon');
+    const editModeBtn = document.getElementById('editMode');
+    const deletePointBtn = document.getElementById('deletePoint');
+    const spinner = document.getElementById('spinner');
+    const modal = document.getElementById('modal');
+
+    let img = new Image();
+    let polygons = [];
+    let currentPolygonIndex = -1;
+    let editMode = false;
+    let deleteMode = false;
+    let draggingPoint = null;
+    let mousePos = { x: 0, y: 0 };
+    let hoveredNode = null;
+    let currentImageUrl = '';
+
+    function resetState() {
+      editMode = false;
+      deleteMode = false;
+      polygons = [];
+      currentPolygonIndex = polygons.push([]) - 1;
+      setActiveButton(createPolygonBtn);
+      canvas.style.cursor = 'crosshair';
+    }
+
+    async function loadImage() {
+      try {
+        spinner.style.display = 'block';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        resetState();
+
+        const response = await fetch('https://web-production-114d3.up.railway.app/api/random-image/');
+        const data = await response.json();
+        currentImageUrl = data.image;
+
+        img.onload = () => {
+          const container = document.querySelector('.container');
+          const maxWidth = container.clientWidth;
+          const scaleFactor = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scaleFactor;
+          spinner.style.display = 'none';
+          redraw();
+        };
+        img.src = currentImageUrl;
+      } catch (error) {
+        spinner.style.display = 'none';
+        alert("Failed to load image: " + error.message);
+      }
+    }
+
+    function setActiveButton(button) {
+      [createPolygonBtn, editModeBtn, deletePointBtn].forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+    }
+
+    function showModal(message) {
+      document.getElementById('modalContent').innerText = message;
+      modal.style.display = 'flex';
+      setTimeout(() => {
+        modal.style.display = 'none';
+      }, 3000);
+    }
+
+    async function submitPolygons() {
+      const formatted = polygons
+        .filter(p => p.length >= 3)
+        .map(polygon =>
+          polygon.map(point => ({
+            x: parseFloat((point.x / canvas.width).toFixed(4)),
+            y: parseFloat((point.y / canvas.height).toFixed(4))
+          }))
+        );
+
+      if (formatted.length === 0) {
+        alert("No valid polygons to submit.");
+        return;
+      }
+
+      try {
+        const response = await fetch("https://web-production-114d3.up.railway.app/api/submit-polygons/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image: currentImageUrl,
+            polygons: formatted
+          })
+        });
+
+        if (response.ok) {
+          showModal("Submitted completely. Thank you for your efforts.");
+        } else {
+          alert("Submission failed.");
+        }
+      } catch (err) {
+        alert("Error during submission: " + err.message);
+      }
+    }
+
+    window.onload = loadImage;
+    reloadImageBtn.addEventListener('click', loadImage);
+    submitBtn.addEventListener('click', submitPolygons);
+
+    createPolygonBtn.addEventListener('click', () => {
+      editMode = false;
+      deleteMode = false;
+      currentPolygonIndex = polygons.push([]) - 1;
+      setActiveButton(createPolygonBtn);
+      canvas.style.cursor = 'crosshair';
+    });
+
+    editModeBtn.addEventListener('click', () => {
+      editMode = true;
+      deleteMode = false;
+      setActiveButton(editModeBtn);
+    });
+
+    deletePointBtn.addEventListener('click', () => {
+      deleteMode = true;
+      editMode = false;
+      setActiveButton(deletePointBtn);
+    });
+
+    canvas.addEventListener('click', (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      if (deleteMode) {
+        for (let i = polygons.length - 1; i >= 0; i--) {
+          const polygon = polygons[i];
+          for (let j = 0; j < polygon.length; j++) {
+            const point = polygon[j];
+            if (Math.abs(point.x - x) <= 12 && Math.abs(point.y - y) <= 12) {
+              polygon.splice(j, 1);
+              if (polygon.length === 2) {
+                if (window.confirm("Do you want to remove the polygon?")) {
+                  polygons.splice(i, 1);
+                } else {
+                  polygon.splice(j, 0, point);
+                }
+              }
+              redraw();
+              return;
+            }
+          }
+
+          if (polygon.length >= 3 && isPointInPolygon({ x, y }, polygon)) {
+            if (window.confirm("Do you want to remove the polygon?")) {
+              polygons.splice(i, 1);
+              redraw();
+            }
+            return;
+          }
+        }
+        return;
+      }
+
+      if (!editMode && currentPolygonIndex !== -1) {
+        const polygon = polygons[currentPolygonIndex];
+
+        if (polygon.length >= 3) {
+          const first = polygon[0];
+          const last = polygon[polygon.length - 1];
+
+          if (Math.abs(first.x - x) <= 12 && Math.abs(first.y - y) <= 12) {
+            for (const other of polygons) {
+              for (let j = 0; j < other.length - 1; j++) {
+                const a = other[j];
+                const b = other[j + 1];
+                if (other === polygon && (a === last || b === last || a === first || b === first)) continue;
+                if (doLinesIntersect(last, first, a, b)) return;
+              }
+            }
+            currentPolygonIndex = polygons.push([]) - 1;
+            redraw();
+            return;
+          }
+        }
+
+        const newPoint = { x, y };
+        for (let i = 0; i < polygons.length; i++) {
+          if (i !== currentPolygonIndex && isPointInPolygon(newPoint, polygons[i])) return;
+        }
+
+        const lastPoint = polygon[polygon.length - 1];
+        if (lastPoint) {
+          for (const other of polygons) {
+            for (let j = 0; j < other.length - 1; j++) {
+              const a = other[j];
+              const b = other[j + 1];
+              if (other === polygon && (a === lastPoint || b === lastPoint)) continue;
+              if (doLinesIntersect(lastPoint, newPoint, a, b)) return;
+            }
+          }
+        }
+
+        polygon.push(newPoint);
+        redraw();
+      }
+    });
+
+    canvas.addEventListener('mousedown', (event) => {
+      if (!editMode) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      for (let i = 0; i < polygons.length; i++) {
+        for (let j = 0; j < polygons[i].length; j++) {
+          const point = polygons[i][j];
+          if (Math.abs(point.x - x) <= 12 && Math.abs(point.y - y) <= 12) {
+            draggingPoint = { polygonIndex: i, pointIndex: j };
+            return;
+          }
+        }
+      }
+    });
+
+    canvas.addEventListener('mousemove', (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      mousePos = { x, y };
+      hoveredNode = null;
+      let hovering = false;
+
+      for (let i = 0; i < polygons.length; i++) {
+        for (let j = 0; j < polygons[i].length; j++) {
+          const point = polygons[i][j];
+          if (Math.abs(point.x - x) <= 12 && Math.abs(point.y - y) <= 12) {
+            hovering = true;
+            if (deleteMode) hoveredNode = { polygonIndex: i, pointIndex: j };
+            break;
+          }
+        }
+      }
+
+      if (editMode) {
+        canvas.style.cursor = hovering ? 'pointer' : 'default';
+      } else if (deleteMode) {
+        canvas.style.cursor = hovering ? 'not-allowed' : 'default';
+      } else {
+        canvas.style.cursor = 'crosshair';
+      }
+
+      if (!draggingPoint) {
+        redraw();
+        return;
+      }
+
+      const { polygonIndex, pointIndex } = draggingPoint;
+      const originalPoint = polygons[polygonIndex][pointIndex];
+      polygons[polygonIndex][pointIndex] = { x, y };
+
+      if (!isValidMove(polygons[polygonIndex], polygonIndex)) {
+        polygons[polygonIndex][pointIndex] = originalPoint;
+      }
+
+      redraw();
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      draggingPoint = null;
+    });
+
+    canvas.addEventListener('dblclick', () => {
+      if (!editMode && !deleteMode && currentPolygonIndex !== -1) {
+        if (polygons[currentPolygonIndex].length > 0) {
+          polygons[currentPolygonIndex].pop();
+        }
+        createPolygonBtn.click();
+      }
+    });
+
+    function isPointInPolygon(point, polygon) {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > point.y) !== (yj > point.y)) &&
+          (point.x < (xj - xi) * (point.y - yi) / ((yj - yi) || 1) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function doLinesIntersect(p1, p2, q1, q2) {
+      function ccw(a, b, c) {
+        return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x);
+      }
+      return (
+        ccw(p1, q1, q2) !== ccw(p2, q1, q2) &&
+        ccw(p1, p2, q1) !== ccw(p1, p2, q2)
+      );
+    }
+
+    function isValidMove(polygon, polygonIndex) {
+      for (let i = 0; i < polygon.length; i++) {
+        const a1 = polygon[i];
+        const a2 = polygon[(i + 1) % polygon.length];
+        for (let j = 0; j < polygon.length; j++) {
+          if (Math.abs(i - j) <= 1 || (i === 0 && j === polygon.length - 1) || (j === 0 && i === polygon.length - 1)) continue;
+          const b1 = polygon[j];
+          const b2 = polygon[(j + 1) % polygon.length];
+          if (doLinesIntersect(a1, a2, b1, b2)) return false;
+        }
+        for (let k = 0; k < polygons.length; k++) {
+          if (k === polygonIndex) continue;
+          const other = polygons[k];
+          for (let m = 0; m < other.length; m++) {
+            const c1 = other[m];
+            const c2 = other[(m + 1) % other.length];
+            if (doLinesIntersect(a1, a2, c1, c2)) return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      polygons.forEach((polygon, i) => {
+        if (polygon.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(polygon[0].x, polygon[0].y);
+          for (let j = 1; j < polygon.length; j++) {
+            ctx.lineTo(polygon[j].x, polygon[j].y);
+          }
+          if (polygon.length >= 3 && currentPolygonIndex !== i) {
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
+            ctx.fill();
+          }
+          ctx.strokeStyle = 'blue';
+          ctx.stroke();
+        }
+
+        polygon.forEach((point, j) => {
+          let color = 'red';
+          if (deleteMode && hoveredNode && hoveredNode.polygonIndex === i && hoveredNode.pointIndex === j) {
+            color = 'yellow';
+          }
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+
+      if (!editMode && !deleteMode && currentPolygonIndex !== -1) {
+        const polygon = polygons[currentPolygonIndex];
+        if (polygon.length > 0) {
+          const last = polygon[polygon.length - 1];
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+          ctx.beginPath();
+          ctx.moveTo(last.x, last.y);
+          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

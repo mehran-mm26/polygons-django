@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import ImageAnnotation
+from django.shortcuts import render
 
 class RandomImageView(APIView):
     def get(self, request):
@@ -38,3 +39,6 @@ def save_annotation(request):
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Invalid method"}, status=405)
 
+
+def home_page(request):
+    return render(request, 'index.html')
