@@ -40,5 +40,5 @@ def save_annotation(request):
     return JsonResponse({"error": "Invalid method"}, status=405)
 
 
-def home_page(request):
+def index(request):
     return render(request, 'index.html')
